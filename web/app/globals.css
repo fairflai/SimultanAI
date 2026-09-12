@@ -1,0 +1,153 @@
+/* Palette and type of fairflai.com: white ground, near-black ink, yellow accent, square corners */
+:root {
+  --accent: #f7bc2a;
+  --ink: #0a0a0a;
+  --control: #d4d4d8;
+  --muted: #52535c;
+  --paper: #fff;
+  --rule: #e6e6e6;
+  color-scheme: light;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  margin: 0 auto;
+  max-width: 720px;
+  padding: 36px 16px 32px;
+}
+
+.eyebrow {
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .18em;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+h1 {
+  font-size: clamp(2.2rem, 8vw, 3rem);
+  font-style: italic;
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.05;
+  margin: 0 0 28px;
+
+  span {
+    color: var(--accent);
+  }
+}
+
+.controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+select,
+button {
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  padding: 10px 16px;
+  text-transform: uppercase;
+  transition: background-color .15s, border-color .15s, color .15s;
+
+  &:disabled {
+    opacity: .4;
+  }
+}
+
+select {
+  background: var(--paper);
+  border-color: var(--control);
+  color: var(--ink);
+
+  &:hover:enabled {
+    border-color: var(--ink);
+  }
+}
+
+/* same as the site's CTA: yellow, turns black with yellow text on hover */
+button {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink);
+  cursor: pointer;
+
+  &:hover:enabled {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--accent);
+  }
+
+  &.stop {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+
+    &:hover:enabled {
+      background: var(--paper);
+      color: var(--ink);
+    }
+  }
+}
+
+/* black tag like the case labels on the site, yellow when live */
+#status {
+  background: var(--ink);
+  color: var(--paper);
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  padding: 6px 10px;
+  text-transform: uppercase;
+
+  &.on {
+    background: var(--accent);
+    color: var(--ink);
+  }
+}
+
+#subtitles {
+  border: 1px solid var(--rule);
+  font-size: 1.4rem;
+  line-height: 1.4;
+  min-height: 160px;
+  padding: 16px 20px;
+
+  .prev {
+    color: var(--muted);
+    font-size: 1rem;
+  }
+}
+
+/* audio waveform */
+#viz {
+  color: var(--accent);
+  display: block;
+  height: 96px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+footer {
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: .7rem;
+  letter-spacing: .1em;
+  margin-top: 32px;
+  padding-top: 12px;
+  text-transform: uppercase;
+
+  a {
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: none;
+  }
+}

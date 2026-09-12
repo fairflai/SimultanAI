@@ -1,0 +1,31 @@
+{
+  "name": "simultanai-server",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "author": "FAIRFLAI",
+  "homepage": "https://www.fairflai.com",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "check": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "node --test 'test/**/*.test.ts'",
+    "test:coverage": "node --test --experimental-test-coverage 'test/**/*.test.ts'",
+    "verify": "npm run check && npm run lint && npm test"
+  },
+  "dependencies": {
+    "jose": "^6.2.12",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.4",
+    "@types/ws": "^8.18.1",
+    "eslint": "^10.10.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0"
+  }
+}
