@@ -153,7 +153,7 @@ It needs:
 - HTTPS termination in front, long-lived chunked `POST` requests and WebSocket upgrades passed through without buffering
 - healthcheck on `GET /health`: 200 only if the provider key and model respond too (free check, no session opened)
 
-The repository is a monorepo: `server/` and `web/` are deployed as two separate services, each with its own root directory, so a push that touches only one of them rebuilds only that one.
+The repository is a monorepo: `server/` and `web/` are deployed as two separate services, each with its own root directory, so a push that touches only one of them rebuilds only that one.  
 For a step-by-step deploy guide see [Railway for the server side](docs/Railway.md) and [Vercel for the web side](docs/Vercel.md).
 
 Then on the PC with ffmpeg: `client/send.sh <provider> https://<server host>/ingest <token> :1`.  
@@ -197,12 +197,15 @@ If the connection from the PC dies (unplugged cable, dropped Wi-Fi), the server 
 ### Limits
 
 - **Latency**: the audience hears the translation about one second behind the speaker, plus the browser buffer and the network.  
-  If the speaker switches language mid-sentence, the model waits for the end of the sentence and the delay rises to several seconds. Values observed with OpenAI and a synthesized voice, not measured with Gemini nor with real voices.
+  The Opus encoding adds a delay that is negligible next to the provider's.  
+  If the speaker switches language mid-sentence, the model waits for the end of the sentence and the delay rises to several seconds.  
+  Values observed with OpenAI and a synthesized voice, not measured with Gemini nor with real voices.
 - **Bandwidth**: the translated audio travels as Opus, about 32 kbit/s per listener, and every listener receives their own stream, so bandwidth grows linearly with the audience.  
   It has to be sized on two fronts: outbound from the server, where the host may bill the traffic (egress), and inbound in the room, where the Wi-Fi is usually the real constraint.
 - **Browsers**: the page decodes Opus with WebCodecs (`AudioDecoder`), available in current Chrome, Edge, Safari and Firefox. A browser without it shows `browser not supported` and plays nothing.
 - **One microphone, one direction only**: the server accepts one audio stream at a time (a second `POST /ingest` gets 409): multiple voices must be mixed **before** ffmpeg.  
-  The flow goes only from the speaker to the audience: questions from the floor do not reach the speaker translated. An integration that lets people ask questions in several languages directly from the site or app used to listen to the audio would be useful.
+  The flow goes only from the speaker to the audience: questions from the floor do not reach the speaker translated.  
+  An integration that lets people ask questions in several languages directly from the site or app used to listen to the audio would be useful.
 - **Session duration**: each provider closes the session after a maximum time.
 
    - OpenAI: 60 minutes ([Realtime conversations](https://developers.openai.com/api/docs/guides/realtime-conversations) guide; the exact expiry arrives in the `expires_at` field of `session.created`), the server rotates it 5 minutes earlier.
