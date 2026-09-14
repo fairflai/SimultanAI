@@ -5,7 +5,7 @@ import { ALG, secretKey, verifyTicket } from '../src/ticket.ts';
 
 const key = secretKey('test-secret');
 
-// Same signing as web/app/ticket.js, with a fixed clock
+// Same signing as web/app/ticket.ts, with a fixed clock
 function mint(k: Uint8Array, expiresInS: number, now: Date, exp = true): Promise<string> {
   const jwt = new SignJWT({}).setProtectedHeader({ alg: ALG });
   if (exp) jwt.setExpirationTime(Math.floor(now.getTime() / 1000) + expiresInS);
