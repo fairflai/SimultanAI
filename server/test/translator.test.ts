@@ -4,6 +4,8 @@ import { Translator } from '../src/translator.ts';
 import * as broadcast from '../src/broadcast.ts';
 import { FakeProvider, FakeSocket, emit } from './helpers.ts';
 
+await broadcast.init(['en']);
+
 const setup = (t: TestContext) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'] });
   delete process.env.ROTATE_MARGIN_MS;
@@ -25,7 +27,7 @@ test('audio pushed before the session is ready is queued and flushed on ready', 
   assert.deepEqual(first.sent.at(-1), 'audio:5');
 });
 
-test('the queue keeps at most 10s of audio', (t) => {
+test('the queue keeps at most 10 s of audio', (t) => {
   const { translator } = setup(t);
   const tenSeconds = 24000 * 2 * 10;
   translator.push(Buffer.alloc(tenSeconds));
@@ -37,7 +39,7 @@ test('translated audio and subtitles reach the language room', (t) => {
   const { first } = setup(t);
   const listener = new FakeSocket();
   broadcast.join('en', listener as never);
-  emit(first, { kind: 'ready' }, { kind: 'audio', pcm: Buffer.from('pcm') }, { kind: 'subtitle', text: 'hi' });
+  emit(first, { kind: 'ready' }, { kind: 'audio', pcm: Buffer.alloc(960) }, { kind: 'subtitle', text: 'hi' }); // 960 bytes = one Opus packet
   assert.equal(listener.sent.length, 2);
   assert.equal(listener.sent[1], '{"type":"subtitle","delta":"hi"}');
   listener.emit('close');
@@ -55,7 +57,7 @@ test('a dropped session is reopened with exponential backoff', (t) => {
   emit(first, { kind: 'ready' });
   first.drop();
   assert.equal(provider.sockets.length, 1);
-  t.mock.timers.tick(1600); // 1s + up to 500 ms jitter
+  t.mock.timers.tick(1600); // 1 s + up to 500 ms jitter
   assert.equal(provider.sockets.length, 2);
   provider.sockets[1].drop();
   t.mock.timers.tick(1600);

@@ -23,7 +23,7 @@ interface GeminiMessage {
     modelTurn?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] };
     outputTranscription?: { text?: string; languageCode?: string };
   };
-  goAway?: { timeLeft?: string }; // protobuf Duration string like "10s"
+  goAway?: { timeLeft?: string }; // protobuf Duration string like "10 s"
 }
 
 export class GoogleProvider extends Provider {

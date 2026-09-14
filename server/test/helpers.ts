@@ -6,11 +6,13 @@ import { Provider, rawToString, type ProviderEvent } from '../src/providers/prov
 // Looks enough like a ws.WebSocket for Translator and broadcast
 export class FakeSocket extends EventEmitter {
   readyState: number = WebSocket.OPEN;
-  sent: string[] = [];
+  bufferedAmount = 0;
+  sent: (string | Uint8Array)[] = [];
   closed = false;
+  closeCode: number | undefined;
   terminated = false;
-  send(data: string): void { this.sent.push(data); }
-  close(): void { this.closed = true; this.readyState = WebSocket.CLOSED; }
+  send(data: string | Uint8Array): void { this.sent.push(data); }
+  close(code?: number): void { this.closed = true; this.closeCode = code; this.readyState = WebSocket.CLOSED; }
   terminate(): void { this.terminated = true; this.readyState = WebSocket.CLOSED; }
   // Simulate the vendor closing the connection
   drop(code = 1006): void { this.readyState = WebSocket.CLOSED; this.emit('close', code, Buffer.alloc(0)); }
@@ -35,8 +37,10 @@ export class FakeProvider extends Provider {
   }
   sendAudio(ws: WebSocket, pcm: Buffer): void { ws.send(`audio:${pcm.length}`); }
   override close(ws: WebSocket): void { this.closedGracefully.push(ws as unknown as FakeSocket); ws.close(); }
-  // Tests emit pre-parsed events: parse() just unwraps them
-  parse(data: WebSocket.RawData): ProviderEvent[] { return JSON.parse(rawToString(data)) as ProviderEvent[]; }
+  // Tests emit pre-parsed events: parse() just unwraps them, restoring the Buffer of 'audio' events
+  parse(data: WebSocket.RawData): ProviderEvent[] {
+    return JSON.parse(rawToString(data), (_k: string, v: unknown) => (isJsonBuffer(v) ? Buffer.from(v.data) : v)) as ProviderEvent[];
+  }
 }
 
 // Deliver normalized events to a Translator through the socket, as the vendor would
@@ -45,3 +49,8 @@ export function emit(ws: FakeSocket, ...events: ProviderEvent[]): void {
 }
 
 export const raw = (obj: unknown): Buffer => Buffer.from(JSON.stringify(obj));
+
+// A Buffer after JSON.stringify: {type:'Buffer', data:[...]}
+function isJsonBuffer(v: unknown): v is { type: 'Buffer'; data: number[] } {
+  return typeof v === 'object' && v !== null && (v as { type?: unknown }).type === 'Buffer' && Array.isArray((v as { data?: unknown }).data);
+}

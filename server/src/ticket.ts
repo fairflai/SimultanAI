@@ -1,4 +1,4 @@
-// Listener ticket for GET /listen: a JWT HS256 signed by the web server with LISTEN_SECRET (web/app/ticket.js),
+// Listener ticket for GET /listen: a JWT HS256 signed by the web server with LISTEN_SECRET (web/app/ticket.ts),
 // short-lived so the value in the query string is worthless within a minute. The server only verifies.
 import { jwtVerify } from 'jose';
 

@@ -77,9 +77,9 @@ test('openai: health probe is a GET of the model entry, bearer in the header', (
 test('openai: audio is appended as base64, close sends session.close', () => {
   const ws = new FakeSocket();
   openai.sendAudio(ws as never, Buffer.from([0, 0]));
-  assert.deepEqual(JSON.parse(ws.sent[0]), { type: 'session.input_audio_buffer.append', audio: 'AAA=' });
+  assert.deepEqual(JSON.parse(ws.sent[0] as string), { type: 'session.input_audio_buffer.append', audio: 'AAA=' });
   openai.close(ws as never);
-  assert.deepEqual(JSON.parse(ws.sent[1]), { type: 'session.close' });
+  assert.deepEqual(JSON.parse(ws.sent[1] as string), { type: 'session.close' });
   assert.ok(ws.closed);
 });
 
@@ -138,7 +138,7 @@ test('google: health probe is a GET of the model entry, key in the URL, no heade
 test('google: audio frames declare the 16 kHz input rate', () => {
   const ws = new FakeSocket();
   google.sendAudio(ws as never, Buffer.from([0, 0]));
-  assert.deepEqual(JSON.parse(ws.sent[0]), { realtimeInput: { audio: { data: 'AAA=', mimeType: 'audio/pcm;rate=16000' } } });
+  assert.deepEqual(JSON.parse(ws.sent[0] as string), { realtimeInput: { audio: { data: 'AAA=', mimeType: 'audio/pcm;rate=16000' } } });
   assert.equal(google.inputSampleRate, 16000);
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "simultanai-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "license": "MIT",
   "author": "FAIRFLAI",
@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "jose": "^6.2.12",
+    "libopus-wasm": "^0.4.0",
     "ws": "^8.21.3"
   },
   "devDependencies": {

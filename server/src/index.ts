@@ -83,7 +83,7 @@ function handleIngest(req: http.IncomingMessage, res: http.ServerResponse): void
     clearTimeout(idleTimer);
     if (ingest !== current) return;
     const seconds = ((Date.now() - current.startedAt) / 1000).toFixed(1);
-    console.log(`ingest stopped after ${seconds}s, ${current.bytes} bytes`);
+    console.log(`ingest stopped after ${seconds} s, ${current.bytes} bytes`);
     for (const t of translators) t.close();
     ingest = null;
     broadcast.textAll({ type: 'status', ingest: false });
@@ -177,6 +177,7 @@ server.on('upgrade', (req, socket, head) => {
   });
 });
 
+await broadcast.init(LANGS); // one Opus encoder per language, the codec loads asynchronously
 server.listen(PORT, () => {
   console.log(`listening on :${PORT}, provider ${provider.name} (${provider.model}), languages ${LANGS.join(',')}`);
 });

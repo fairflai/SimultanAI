@@ -87,7 +87,7 @@ opening, and **no** `ingest idle for 15000 ms` while ffmpeg is running.
 That line within a few seconds of startup would mean the proxy buffers
 the POST instead of streaming it.
 
-`Ctrl+C` on ffmpeg: `ingest stopped after ...s` in the logs and `"ingest":false`
+`Ctrl+C` on ffmpeg: `ingest stopped after X s` in the logs and `"ingest":false`
 from `/info`.
 
 ## Resources
@@ -98,10 +98,11 @@ from `/info`.
 
 The limits are caps, not reservations: billing follows actual usage, so
 a low cap saves nothing and a high one costs nothing at rest. The
-server is pure I/O: one inbound stream, one provider session per language,
-384 kbps outbound per listener. At rest it uses about 60 MB; with 100
-listeners it stays under 150 MB. The cap only serves to stop a runaway
-process.
+server is almost pure I/O: one inbound stream, one provider session per
+language, one Opus encoder per language (about 2% of a core each while the
+translation speaks, nothing while nobody listens) and about 32 kbps outbound
+per listener. At rest it uses about 60 MB; with 100 listeners it stays under
+150 MB. The cap only serves to stop a runaway process.
 
 Serverless saves the cost at rest. During an event
 ffmpeg's POST is continuous inbound traffic, so the service never

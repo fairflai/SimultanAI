@@ -4,3 +4,5 @@ node_modules/
 .DS_Store
 web/.next/
 web/.vercel/
+web/next-env.d.ts
+web/tsconfig.tsbuildinfo

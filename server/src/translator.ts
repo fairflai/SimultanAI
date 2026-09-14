@@ -157,7 +157,7 @@ export class Translator {
   reconnect(): void {
     const delay = Math.min(1000 * 2 ** this.attempt, RECONNECT_MAX_MS) + Math.random() * 500;
     this.attempt++;
-    this.log(`reconnecting in ${Math.round(delay / 1000)}s (attempt ${this.attempt})`);
+    this.log(`reconnecting in ${Math.round(delay / 1000)} s (attempt ${this.attempt})`);
     const t = setTimeout(() => {
       this.timers.delete(t);
       if (!this.closed) this.openSession();

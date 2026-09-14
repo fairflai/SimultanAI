@@ -7,7 +7,7 @@ import { SignJWT } from 'jose';
 
 const TTL = '50s';
 
-export async function getTicket() {
+export async function getTicket(): Promise<string> {
   const key = new TextEncoder().encode(process.env.LISTEN_SECRET);
   return new SignJWT({}).setProtectedHeader({ alg: 'HS256' }).setExpirationTime(TTL).sign(key);
 }

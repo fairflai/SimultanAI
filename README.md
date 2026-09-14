@@ -32,7 +32,7 @@ microphone ──ffmpeg (HTTP POST + Bearer INGEST_TOKEN)───▶ Docker ser
 - `client/` ffmpeg scripts (nothing else runs on the PC)
 - `server/` TypeScript run directly by Node 24 (type stripping, no build), Docker image for any container host.  
 The providers live in `server/src/providers/`: an abstract `Provider` class with typed events, a factory and one implementation per provider in `impl/`; adding one means writing a file and registering it in the factory.
-- `web/` Next.js page, a single client route
+- `web/` Next.js page in TypeScript, a single client route
 
 > [!IMPORTANT]
 > The project should be considered experimental: so far it has only been used in controlled settings, not at large events.
@@ -75,7 +75,7 @@ All settings live in the root `.env` (copy `.env.example`), split as in the file
 | SERVER | `ROTATE_MARGIN_MS` | how far ahead of expiry the replacement session is opened; empty = provider default (OpenAI 5 min, Gemini 2 min). Only useful to test rotation |
 | SERVER | `INGEST_TOKEN` | shared secret between ffmpeg and the server for `POST /ingest`, 32 random bytes (`openssl rand -hex 32`) |
 | SERVER + WEB | `INFO_TOKEN` | shared secret between the Next server and the server for `GET /info`, 32 random bytes |
-| SERVER + WEB | `LISTEN_SECRET` | shared secret between the Next server and the server: signs the 50s ticket the page presents on `GET /listen`, 32 random bytes. Never with the `NEXT_PUBLIC_` prefix: it must not reach the browser |
+| SERVER + WEB | `LISTEN_SECRET` | shared secret between the Next server and the server: signs the 50 s ticket the page presents on `GET /listen`, 32 random bytes. Never with the `NEXT_PUBLIC_` prefix: it must not reach the browser |
 | SERVER | `INGEST_IDLE_MS` | ms without audio bytes after which the ingest is dropped and the sessions closed, default 15000 |
 | SERVER | `PORT` | server port, default 8000 (most hosts inject it themselves) |
 | SERVER | `TARGET_LANGS` | target languages, one session each; the page reads the list from `GET /info` through its own server |
@@ -161,7 +161,7 @@ In production the ingest URL must start with `https://`, otherwise the token tra
 
 ### Languages
 
-`TARGET_LANGS` on the server is the single source of truth: one session per language, and the web page fills the selector by reading `langs` from `GET /info` at load time, through its own server (`web/app/api/info/route.js`).  
+`TARGET_LANGS` on the server is the single source of truth: one session per language, and the web page fills the selector by reading `langs` from `GET /info` at load time, through its own server (`web/app/api/info/route.ts`).  
 Locally it comes from the root `.env` (loaded by `docker compose`); in production from the host's environment variables.
 
 Language codes depend on the provider; the up-to-date list is in the official documentation:
@@ -178,7 +178,7 @@ A rejected code makes the session setup fail: the server keeps retrying with bac
 | `POST /ingest` | chunked body of mono PCM16 at the provider's sample rate (OpenAI 24 kHz, Google 16 kHz), header `Authorization: Bearer <INGEST_TOKEN>`. 401 with a wrong token, 409 if an ingest is already active |
 | `GET /health` | public, no data: `200 ok` if the server is up and the provider answers a `GET` of the configured model (`models.get`, free: no session, no tokens), otherwise `503 unavailable` with the reason only in the logs |
 | `GET /info` | header `Authorization: Bearer <INFO_TOKEN>`, 401 without it. Ingest state, listeners per language, `langs`, `provider`, `model` and `capabilities` (e.g. `{subtitles:true}`, the page hides the subtitles if `false`). Called only server side by the Next route handler, which forwards only `langs` and `capabilities` to the browser |
-| `GET /listen?lang=en&ticket=<JWT>` | WebSocket. `ticket` = JWT HS256 signed with `LISTEN_SECRET`, `exp` at most 50s ahead (the page gets one from a Next Server Action at every connection). Closes with `4001` if the ticket is missing, invalid or expired, `4000` if the language is not configured. Binary frames = translated mono PCM16 at 24 kHz. Text frames = JSON `{type:'subtitle'\|'status', ...}` |
+| `GET /listen?lang=en&ticket=<JWT>` | WebSocket. `ticket` = JWT HS256 signed with `LISTEN_SECRET`, `exp` at most 50 s ahead (the page gets one from a Next Server Action at every connection). Closes with `4001` if the ticket is missing, invalid or expired, `4000` if the language is not configured, `4002` if the listener falls more than 128 KB behind. Binary frames = translated audio, one Opus packet each (20 ms, mono, 24 kHz, about 32 kbit/s), decoded by the page with WebCodecs. Text frames = JSON `{type:'subtitle'\|'status', ...}` |
 
 ## Costs and limits
 
@@ -191,15 +191,16 @@ The billing unit, however, differs from provider to provider:
 - **Gemini**: bills per audio token, input and output, with a fixed number of tokens per second of audio; input runs for the whole session, output only while the model speaks. The [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing), under the `Live translate` model entry, gives in a note the resulting effective price per minute.
 
 Sessions stay open as long as ffmpeg is connected, even in silence.  
-If the connection from the PC dies (unplugged cable, dropped Wi-Fi), the server drops the ingest and closes the sessions after `INGEST_IDLE_MS` without audio bytes, 15s by default; relaunch `client/send.sh` to resume.  
+If the connection from the PC dies (unplugged cable, dropped Wi-Fi), the server drops the ingest and closes the sessions after `INGEST_IDLE_MS` without audio bytes, 15 s by default; relaunch `client/send.sh` to resume.  
 **A hard spending limit on the provider account is the safety net for everything else**.
 
 ### Limits
 
 - **Latency**: the audience hears the translation about one second behind the speaker, plus the browser buffer and the network.  
   If the speaker switches language mid-sentence, the model waits for the end of the sentence and the delay rises to several seconds. Values observed with OpenAI and a synthesized voice, not measured with Gemini nor with real voices.
-- **Bandwidth**: the translated audio travels uncompressed and every listener receives their own stream, so bandwidth grows linearly with the audience.  
+- **Bandwidth**: the translated audio travels as Opus, about 32 kbit/s per listener, and every listener receives their own stream, so bandwidth grows linearly with the audience.  
   It has to be sized on two fronts: outbound from the server, where the host may bill the traffic (egress), and inbound in the room, where the Wi-Fi is usually the real constraint.
+- **Browsers**: the page decodes Opus with WebCodecs (`AudioDecoder`), available in current Chrome, Edge, Safari and Firefox. A browser without it shows `browser not supported` and plays nothing.
 - **One microphone, one direction only**: the server accepts one audio stream at a time (a second `POST /ingest` gets 409): multiple voices must be mixed **before** ffmpeg.  
   The flow goes only from the speaker to the audience: questions from the floor do not reach the speaker translated. An integration that lets people ask questions in several languages directly from the site or app used to listen to the audio would be useful.
 - **Session duration**: each provider closes the session after a maximum time.
@@ -217,7 +218,7 @@ If the connection from the PC dies (unplugged cable, dropped Wi-Fi), the server 
    Each provider declares the value in the server (`inputSampleRate` variable) and ffmpeg produces it through the table in `client/_common.sh`, selected with the first argument of the scripts.  
    The server **NEVER** resamples: if the two values differ, the translated audio changes speed and pitch with no error in the logs.
 
-   The output is always mono PCM16 at 24 kHz for both.
+   The output is always mono PCM16 at 24 kHz for both; the server encodes it to Opus before sending it to the listeners (see Server API).
 
 > [!WARNING]
 > As of 11 September 2026 the Google model `gemini-3.5-live-translate-preview`, based on empirical tests, is not to be considered production-ready yet, and not by chance it is still in preview.  
@@ -235,9 +236,9 @@ All three secrets are 32 random bytes (`openssl rand -hex 32`), compared in cons
 - `INFO_TOKEN` protects `/info`, which exposes the ingest state and the number of listeners per language.  
    It is used only by the backend of whoever integrates the service, calling it server side: in the repository the Next route handler reads it from the environment and forwards only `langs` and `capabilities` to the page.  
    Use a value different from `INGEST_TOKEN`: the two secrets protect different things.
-- `LISTEN_SECRET` protects `/listen`: the server accepts only connections carrying a ticket, a JWT (HS256) signed with it by the Next Server Action in `web/app/ticket.js`, valid for 50 s.  
+- `LISTEN_SECRET` protects `/listen`: the server accepts only connections carrying a ticket, a JWT (HS256) signed with it by the Next Server Action in `web/app/ticket.ts`, valid for 50 s.  
    The browser cannot set headers on the WebSocket handshake, so the ticket travels in the query string: it is consumed within a second of being issued and worthless once expired, so a copy in a proxy log does no harm. The check runs at connection time only; an open stream is not cut when its ticket expires.  
-   Today the Server Action hands a ticket to whoever loads the page, so this stops whoever only knows the server host, not whoever has the page. For private events add the gate in `web/app/ticket.js` (event code, login): no gate passed, no ticket, and the server needs no change.  
+   Today the Server Action hands a ticket to whoever loads the page, so this stops whoever only knows the server host, not whoever has the page. For private events add the gate in `web/app/ticket.ts` (event code, login): no gate passed, no ticket, and the server needs no change.  
    Every connection adds bandwidth; the provider cost stays the same.
 - The provider key lives only in the server environment, and the server is the only one talking to the provider.
 
@@ -245,7 +246,7 @@ All three secrets are 32 random bytes (`openssl rand -hex 32`), compared in cons
 
 Nothing is stored on the application side.
 Audio and subtitles pass through the server in memory and are discarded; there are no files, databases or content logs.  
-The only buffer is 10s of audio held while a session is being opened.
+The only buffer is 10 s of audio held while a session is being opened.
 
 The audio is sent to the configured provider for translation.
 
