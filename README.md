@@ -21,12 +21,14 @@ The provider is chosen in the `.env` (`PROVIDER=google|openai`); currently suppo
 
 One session per language serves the whole room: 100 listeners cost the provider the same as a single one (see [Costs](#costs)).
 
-```
-microphone ──ffmpeg (HTTP POST + Bearer INGEST_TOKEN)───▶ Docker server ──WS (JWT ticket; audio + subtitles)──▶ web page
-                                                                 │
-                                                                 ├─▶ provider session, language 1
-                                                                 ├─▶ provider session, language 2
-                                                                 └─▶ ... one for each language in TARGET_LANGS
+```mermaid
+flowchart LR
+    mic["🎤 Microphone"] --> ffmpeg
+    ffmpeg -- "HTTP POST + Bearer INGEST_TOKEN" --> server
+    subgraph server["🖥️ Docker server"]
+        sessions["- provider session, language 1<br/>- provider session, language 2<br/>- ... one for each language in TARGET_LANGS"]
+    end
+    server -- "WS (JWT ticket; audio + subtitles)" --> web["📱 Web page"]
 ```
 
 - `client/` ffmpeg scripts (nothing else runs on the PC)
