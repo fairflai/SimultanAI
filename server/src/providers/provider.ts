@@ -1,9 +1,9 @@
-// Abstract translation provider: the vocabulary of ONE wire session with a vendor.
+// Abstract translation provider: the vocabulary of ONE wire session with the AI provider.
 //
 // A provider is stateless and shared by every Translator. It knows the endpoint, the auth,
 // the setup payload, how to wrap an audio chunk and how to turn a raw WebSocket message into
 // normalized events. The Translator owns the session lifecycle (queue, rotation, reconnect)
-// and never sees a vendor string.
+// and never sees a provider-specific string.
 import type WebSocket from 'ws';
 
 // Normalized events returned by parse(). Translator.handle() switches exhaustively on `kind`.
@@ -12,9 +12,9 @@ export type ProviderEvent =
   | { kind: 'expires'; at: number } // session/connection expiry, ms epoch (drives rotation)
   | { kind: 'audio'; pcm: Buffer } // translated audio, PCM16 mono 24 kHz
   | { kind: 'subtitle'; text: string } // translated transcript delta
-  | { kind: 'error'; message: string } // vendor error (on a pending session it aborts the open)
-  | { kind: 'goaway'; msLeft: number } // vendor will close the connection soon: rotate now
-  | { kind: 'unknown'; type: string; raw: unknown }; // unmapped vendor event, logged once per type
+  | { kind: 'error'; message: string } // provider error (on a pending session it aborts the open)
+  | { kind: 'goaway'; msLeft: number } // provider will close the connection soon: rotate now
+  | { kind: 'unknown'; type: string; raw: unknown }; // unmapped provider event, logged once per type
 
 export interface Capabilities {
   subtitles: boolean;
@@ -46,7 +46,7 @@ export abstract class Provider {
   // It must NEVER open a session or send content: realtime sessions are billed per minute, silence included.
   abstract healthRequest(): HealthRequest;
 
-  // Opens a WebSocket for one target language and sends the vendor setup on 'open'.
+  // Opens a WebSocket for one target language and sends the provider setup on 'open'.
   abstract connect(lang: string): WebSocket;
 
   // Sends one chunk of PCM16 mono audio at inputSampleRate on an open session.

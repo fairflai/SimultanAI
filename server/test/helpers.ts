@@ -14,7 +14,7 @@ export class FakeSocket extends EventEmitter {
   send(data: string | Uint8Array): void { this.sent.push(data); }
   close(code?: number): void { this.closed = true; this.closeCode = code; this.readyState = WebSocket.CLOSED; }
   terminate(): void { this.terminated = true; this.readyState = WebSocket.CLOSED; }
-  // Simulate the vendor closing the connection
+  // Simulate the provider closing the connection
   drop(code = 1006): void { this.readyState = WebSocket.CLOSED; this.emit('close', code, Buffer.alloc(0)); }
 }
 
@@ -43,7 +43,7 @@ export class FakeProvider extends Provider {
   }
 }
 
-// Deliver normalized events to a Translator through the socket, as the vendor would
+// Deliver normalized events to a Translator through the socket, as the provider would
 export function emit(ws: FakeSocket, ...events: ProviderEvent[]): void {
   ws.emit('message', Buffer.from(JSON.stringify(events)));
 }

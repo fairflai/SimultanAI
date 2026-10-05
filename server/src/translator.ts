@@ -1,4 +1,4 @@
-// One provider session per target language. The vendor protocol lives in providers/impl/*.ts;
+// One provider session per target language. Each provider's wire protocol lives in providers/impl/*.ts;
 // this class only runs the generic lifecycle.
 //
 // Sessions expire (the provider reports when through the 'expires' event). To survive long events
@@ -43,7 +43,6 @@ export class Translator {
   }
 
   // --- session lifecycle -----------------------------------------------------
-
   openSession(): void {
     const ws = this.provider.connect(this.lang);
     this.pending = ws;
@@ -100,7 +99,7 @@ export class Translator {
         break;
       }
       case 'unknown':
-        // Log each unknown event type once: this is how new vendor events get discovered
+        // Log each unknown event type once: this is how new provider events get discovered
         if (!this.seenTypes.has(ev.type)) {
           this.seenTypes.add(ev.type);
           this.log(`event ${ev.type}: ${JSON.stringify(ev.raw).slice(0, 300)}`);
@@ -171,7 +170,6 @@ export class Translator {
   }
 
   // --- audio in --------------------------------------------------------------
-
   // Raw PCM16 mono chunk at provider.inputSampleRate
   push(chunk: Buffer): void {
     if (this.closed) return;

@@ -9,8 +9,7 @@ process.env.OPENAI_API_KEY = 'k';
 process.env.GEMINI_API_KEY = 'k';
 
 // --- factory -----------------------------------------------------------------
-
-test('factory: PROVIDER env selects the vendor, default openai', () => {
+test('factory: PROVIDER env selects the provider, default openai', () => {
   delete process.env.PROVIDER;
   assert.equal(createProvider().name, 'openai');
   assert.equal(createProvider('google').name, 'google');
@@ -32,7 +31,6 @@ test('factory: models come from env with documented defaults', () => {
 });
 
 // --- OpenAI ------------------------------------------------------------------
-
 const openai = new OpenAIProvider();
 
 test('openai: setup selects the output language', () => {
@@ -84,7 +82,6 @@ test('openai: audio is appended as base64, close sends session.close', () => {
 });
 
 // --- Google ------------------------------------------------------------------
-
 const google = new GoogleProvider();
 
 test('google: outputAudioTranscription sits at setup level, translationConfig in generationConfig', () => {

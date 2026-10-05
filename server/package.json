@@ -19,14 +19,14 @@
   },
   "dependencies": {
     "jose": "^6.2.12",
-    "libopus-wasm": "^0.4.0",
-    "ws": "^8.21.3"
+    "libopus-wasm": "^0.4.1",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
-    "@types/node": "^24.13.6",
-    "@types/ws": "^8.18.1",
-    "eslint": "^10.11.0",
+    "@types/node": "^24.19.1",
+    "@types/ws": "^8.18.2",
+    "eslint": "^10.12.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.70.0"
+    "typescript-eslint": "^8.71.0"
   }
 }

@@ -57,7 +57,6 @@ export default function Page() {
   }, []);
 
   // --- languages: from /api/info, the Next route handler that calls GET /info server side ---
-
   useEffect(() => {
     if (serverUrl === null) return;
     if (!serverUrl) { setStatus({ text: 'NEXT_PUBLIC_SERVER_URL not configured', on: false }); return; }
@@ -84,7 +83,6 @@ export default function Page() {
   }, [serverUrl]);
 
   // --- audio ---------------------------------------------------------------
-
   // Binary frames are Opus packets: they go through the WebCodecs decoder, which calls playChunk()
   function decodePacket(packet: ArrayBuffer) {
     const d = decoder.current;
@@ -130,7 +128,6 @@ export default function Page() {
   }
 
   // --- subtitles -----------------------------------------------------------
-
   function addSubtitle(delta: string) {
     let line = currentLineRef.current + delta;
     if (line.length > LINE_MAX_CHARS && /[.!?]\s*$/.test(line)) {
@@ -149,7 +146,6 @@ export default function Page() {
   }
 
   // --- websocket -----------------------------------------------------------
-
   function disconnect() {
     attempt.current++;
     if (retryTimer.current) clearTimeout(retryTimer.current);
@@ -201,7 +197,6 @@ export default function Page() {
   }
 
   // --- audio waveform: voice-message style, one centered bar per instant, scrolling left as audio plays
-
   useEffect(() => {
     if (!listening) return;
     const el = canvas.current;
@@ -238,8 +233,27 @@ export default function Page() {
     return () => { cancelAnimationFrame(rafId.current); g.clearRect(0, 0, el.width, el.height); };
   }, [listening]);
 
-  // --- UI ------------------------------------------------------------------
+  // --- phone screen: keep it on while listening; when the page comes back, revive the audio iOS may have suspended
+  useEffect(() => {
+    if (!listening) return;
 
+    let lock: WakeLockSentinel | null = null;
+
+    // The browser releases the lock whenever the page is hidden: request it again on every return
+    const acquire = () => { navigator.wakeLock?.request('screen').then((l) => { lock = l; }, () => { /* unsupported or denied: the screen may turn off */ }); };
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      acquire();
+      ctx.current?.resume();
+    };
+
+    acquire();
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => { document.removeEventListener('visibilitychange', onVisible); lock?.release(); };
+  }, [listening]);
+
+  // --- UI ------------------------------------------------------------------
   async function togglePlay() {
     if (listening) {
       setListening(false);
@@ -249,6 +263,9 @@ export default function Page() {
     }
     if (typeof AudioDecoder === 'undefined') { setStatus({ text: 'browser not supported: no WebCodecs', on: false }); return; }
     if (!ctx.current) {
+      // Safari only (Audio Session API, not in lib.dom): 'playback' keeps Web Audio playing with the screen locked or the silent switch on
+      const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+      if (session) session.type = 'playback';
       ctx.current = new AudioContext();
       analyser.current = ctx.current.createAnalyser();
       analyser.current.connect(ctx.current.destination);

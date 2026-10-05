@@ -101,7 +101,7 @@ function handleIngest(req: http.IncomingMessage, res: http.ServerResponse): void
   });
 }
 
-// Health = process up AND the vendor answers a free models.get for the configured model (see Provider.healthRequest).
+// Health = process up AND the provider answers a free models.get for the configured model (see Provider.healthRequest).
 // No body beyond ok/unavailable: operational data lives in /info. The reason goes to the log only, never the URL.
 async function handleHealth(res: http.ServerResponse): Promise<void> {
   const { url, headers } = provider.healthRequest();
