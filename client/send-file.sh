@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Simulates a live source from an audio file (wav/mp3/m4a...), in real time (-re).
 # Usage: client/send-file.sh <provider> <ingest url> <token> <audio file>
-#   provider: the server's PROVIDER (openai | google), picks the sample rate
+#   provider: the server's PROVIDER (openai | google | palabra), picks the sample rate
 set -euo pipefail
 . "$(dirname "$0")/_common.sh"
 USAGE="usage: send-file.sh <provider> <ingest url> <token> <audio file>"

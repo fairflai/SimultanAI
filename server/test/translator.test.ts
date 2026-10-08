@@ -27,6 +27,23 @@ test('audio pushed before the session is ready is queued and flushed on ready', 
   assert.deepEqual(first.sent.at(-1), 'audio:5');
 });
 
+test('with inputChunkMs the ingest is sent in chunks of at least that length', (t) => {
+  const { provider } = setup(t);
+  provider.inputChunkMs = 320;
+  const translator = new Translator(provider, 'en');
+  t.after(() => translator.close());
+  const ws = provider.sockets.at(-1)!;
+  emit(ws, { kind: 'ready' });
+  const minBytes = 24000 * 2 * 0.32;
+  translator.push(Buffer.alloc(minBytes - 100));
+  assert.deepEqual(ws.sent, []);
+  translator.push(Buffer.alloc(300));
+  assert.deepEqual(ws.sent, [`audio:${minBytes + 200}`]);
+  translator.close();
+  t.mock.timers.tick(320);
+  assert.equal(ws.sent.at(-1), `audio:${minBytes}`); // drain silence comes in chunks of the same length
+});
+
 test('the queue keeps at most 10 s of audio', (t) => {
   const { translator } = setup(t);
   const tenSeconds = 24000 * 2 * 10;

@@ -22,6 +22,7 @@ export class OpenAIProvider extends Provider {
   readonly requiredEnv = ['OPENAI_API_KEY'];
   readonly capabilities = { subtitles: true };
   readonly inputSampleRate = 24000; // the only rate the translation endpoint accepts
+  readonly inputChunkMs = 0;
   readonly rotateMarginMs = 5 * 60_000;
 
   healthRequest(): HealthRequest {

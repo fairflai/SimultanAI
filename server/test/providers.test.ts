@@ -2,11 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { OpenAIProvider } from '../src/providers/impl/openai.ts';
 import { GoogleProvider } from '../src/providers/impl/google.ts';
+import { PalabraProvider } from '../src/providers/impl/palabra.ts';
 import { createProvider } from '../src/providers/index.ts';
 import { FakeSocket, raw } from './helpers.ts';
 
 process.env.OPENAI_API_KEY = 'k';
 process.env.GEMINI_API_KEY = 'k';
+process.env.PALABRA_API_KEY = 'k';
+process.env.PALABRA_SOURCE_LANG = 'it';
 
 // --- factory -----------------------------------------------------------------
 test('factory: PROVIDER env selects the provider, default openai', () => {
@@ -19,7 +22,7 @@ test('factory: PROVIDER env selects the provider, default openai', () => {
 });
 
 test('factory: unknown name fails listing the valid ones', () => {
-  assert.throws(() => createProvider('foo'), /unknown PROVIDER "foo".*openai, google/);
+  assert.throws(() => createProvider('foo'), /unknown PROVIDER "foo".*openai, google, palabra/);
 });
 
 test('factory: models come from env with documented defaults', () => {
@@ -145,4 +148,60 @@ test('google: JSON may arrive as Buffer, ArrayBuffer or fragmented Buffer[]', ()
   const arrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
   assert.equal(google.parse(arrayBuffer)[1]?.kind, 'ready');
   assert.equal(google.parse([buf.subarray(0, 5), buf.subarray(5)])[1]?.kind, 'ready');
+});
+
+// --- Palabra -----------------------------------------------------------------
+const palabra = new PalabraProvider();
+const pmsg = (message_type: string, data: unknown) => raw({ message_type, data });
+
+test('palabra: set_task declares source, one target and the 24 kHz input', () => {
+  const msg = palabra.setupMessage('en') as { message_type: string; data: { input_stream: { source: unknown }; pipeline: Record<string, unknown> } };
+  assert.equal(msg.message_type, 'set_task');
+  assert.deepEqual(msg.data.input_stream.source, { type: 'ws', format: 'pcm_s16le', sample_rate: 24000, channels: 1 });
+  assert.equal((msg.data.pipeline.transcription as { source_language: string }).source_language, 'it');
+  assert.deepEqual(msg.data.pipeline.translations, [{ target_language: 'en', translate_partial_transcriptions: true, speech_generation: {} }]);
+  assert.equal(palabra.inputSampleRate, 24000);
+});
+
+test('palabra: ready only on the set_task acknowledgement, other statuses are unknown', () => {
+  assert.deepEqual(palabra.parse(pmsg('task_status', { command: 'set_task', event: 'started', task_status: 'running' })), [{ kind: 'ready' }]);
+  const [paused] = palabra.parse(pmsg('task_status', { command: 'pause_task', event: 'paused', task_status: 'paused' }));
+  assert.ok(paused.kind === 'unknown' && paused.type === 'task_status:pause_task:paused');
+});
+
+test('palabra: data may arrive double-encoded as a JSON string', () => {
+  assert.deepEqual(palabra.parse(pmsg('task_status', JSON.stringify({ command: 'set_task', event: 'started', task_status: 'running' }))), [{ kind: 'ready' }]);
+});
+
+test('palabra: audio chunks and final translations, segments separated by a space', () => {
+  const pcm = Buffer.from([1, 2, 3, 4]);
+  const [audio] = palabra.parse(pmsg('output_audio_data', { language: 'en', last_chunk: false, data: pcm.toString('base64') }));
+  assert.ok(audio.kind === 'audio' && audio.pcm.equals(pcm));
+  assert.deepEqual(palabra.parse(pmsg('translated_transcription', { transcription: { language: 'en', text: 'Nice weather.' } })),
+    [{ kind: 'subtitle', text: 'Nice weather. ' }]);
+  assert.deepEqual(palabra.parse(pmsg('translated_transcription', { transcription: { text: '' } })), []);
+});
+
+test('palabra: errors, warnings typed by code, end_of_stream and garbage', () => {
+  assert.deepEqual(palabra.parse(pmsg('error', { code: 'VALIDATION_ERROR', desc: 'bad' })), [{ kind: 'error', message: 'VALIDATION_ERROR: bad' }]);
+  const [warning] = palabra.parse(pmsg('warning', { code: 'AUDIO_STREAM_TOO_FAST', message: 'x' }));
+  assert.ok(warning.kind === 'unknown' && warning.type === 'warning:AUDIO_STREAM_TOO_FAST');
+  assert.deepEqual(palabra.parse(pmsg('end_of_stream', {})), []);
+  assert.deepEqual(palabra.parse(Buffer.from('not json')), []);
+});
+
+test('palabra: health probe lists the sessions, bearer in the header', () => {
+  assert.deepEqual(palabra.healthRequest(), {
+    url: 'https://api.palabra.ai/session-storage/sessions?page_size=1',
+    headers: { Authorization: 'Bearer k' },
+  });
+});
+
+test('palabra: audio goes as input_audio_data, close sends end_task', () => {
+  const ws = new FakeSocket();
+  palabra.sendAudio(ws as never, Buffer.from([0, 0]));
+  assert.deepEqual(JSON.parse(ws.sent[0] as string), { message_type: 'input_audio_data', data: { data: 'AAA=' } });
+  palabra.close(ws as never);
+  assert.deepEqual(JSON.parse(ws.sent[1] as string), { message_type: 'end_task', data: { force: false } });
+  assert.ok(ws.closed);
 });

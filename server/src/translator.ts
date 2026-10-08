@@ -11,7 +11,7 @@ import type { Provider, ProviderEvent } from './providers/provider.ts';
 
 const QUEUE_SECONDS = 10; // audio buffered while no session is active
 const HANDOVER_GRACE_MS = 10_000; // keep a session open to drain its output after a rotation or on close
-const SILENCE_CHUNK_MS = 40; // silence fed to a draining session, every SILENCE_CHUNK_MS
+const SILENCE_CHUNK_MS = 40; // silence fed to a draining session, every SILENCE_CHUNK_MS (or provider.inputChunkMs if longer)
 const RECONNECT_MAX_MS = 30_000;
 
 export class Translator {
@@ -19,7 +19,11 @@ export class Translator {
   readonly lang: string;
   readonly rotateMarginMs: number;
   readonly maxQueueBytes: number;
+  readonly silenceMs: number;
   readonly silenceChunk: Buffer;
+  readonly minChunkBytes: number;
+  input: Buffer[] = []; // ingest bytes not yet sent, below minChunkBytes
+  inputBytes = 0;
   queue: Buffer[] = [];
   queueBytes = 0;
   closed = false;
@@ -38,7 +42,9 @@ export class Translator {
     this.rotateMarginMs = Number(process.env.ROTATE_MARGIN_MS) || provider.rotateMarginMs;
     const bytesPerSecond = provider.inputSampleRate * 2; // PCM16 mono
     this.maxQueueBytes = bytesPerSecond * QUEUE_SECONDS;
-    this.silenceChunk = Buffer.alloc(bytesPerSecond * SILENCE_CHUNK_MS / 1000);
+    this.silenceMs = Math.max(SILENCE_CHUNK_MS, provider.inputChunkMs);
+    this.silenceChunk = Buffer.alloc(bytesPerSecond * this.silenceMs / 1000);
+    this.minChunkBytes = bytesPerSecond * provider.inputChunkMs / 1000;
     this.openSession();
   }
 
@@ -128,7 +134,7 @@ export class Translator {
   drain(ws: WebSocket): void {
     const feed = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) this.append(ws, this.silenceChunk);
-    }, SILENCE_CHUNK_MS);
+    }, this.silenceMs);
     this.timers.add(feed);
     const stop = setTimeout(() => {
       clearInterval(feed);
@@ -171,8 +177,15 @@ export class Translator {
 
   // --- audio in --------------------------------------------------------------
   // Raw PCM16 mono chunk at provider.inputSampleRate
-  push(chunk: Buffer): void {
+  push(data: Buffer): void {
     if (this.closed) return;
+    // Some providers reject (or rate limit) small frames: send at least inputChunkMs at a time
+    this.input.push(data);
+    this.inputBytes += data.length;
+    if (this.inputBytes < this.minChunkBytes) return;
+    const chunk = this.input.length === 1 ? data : Buffer.concat(this.input);
+    this.input = [];
+    this.inputBytes = 0;
     if (this.active?.readyState === WebSocket.OPEN) {
       this.append(this.active, chunk);
       return;

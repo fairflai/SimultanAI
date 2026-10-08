@@ -13,11 +13,11 @@ esac
 # command substitution strips the trailing \n and leaves a lone \r, which corrupts the request.
 CRLF=$'\r\n'
 
-# PCM16 mono sample rate each server provider expects (must match inputSampleRate in server/src/providers/impl/<provider>.js)
+# PCM16 mono sample rate each server provider expects (must match inputSampleRate in server/src/providers/impl/<provider>.ts)
 audio_rate() {
   case "$1" in
-    openai) echo 24000 ;;
+    openai|palabra) echo 24000 ;;
     google) echo 16000 ;;
-    *) echo "unknown provider '$1', valid values: openai, google" >&2; exit 1 ;;
+    *) echo "unknown provider '$1', valid values: openai, google, palabra" >&2; exit 1 ;;
   esac
 }

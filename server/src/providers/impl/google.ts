@@ -32,6 +32,7 @@ export class GoogleProvider extends Provider {
   readonly requiredEnv = ['GEMINI_API_KEY'];
   readonly capabilities = { subtitles: true };
   readonly inputSampleRate = 16000; // documented Live API input rate; client/_common.sh must match
+  readonly inputChunkMs = 0;
   readonly rotateMarginMs = 2 * 60_000;
 
   // The key travels in the URL here too: never log it

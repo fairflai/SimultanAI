@@ -25,6 +25,7 @@ export class FakeProvider extends Provider {
   readonly requiredEnv = [];
   readonly capabilities = { subtitles: true };
   readonly inputSampleRate = 24000;
+  inputChunkMs = 0;
   readonly rotateMarginMs = 1000;
   sockets: FakeSocket[] = [];
   closedGracefully: FakeSocket[] = [];

@@ -39,6 +39,7 @@ export abstract class Provider {
   abstract readonly requiredEnv: readonly string[]; // validated at boot by index.ts
   abstract readonly capabilities: Capabilities;
   abstract readonly inputSampleRate: number; // PCM16 mono rate expected by sendAudio(); client/_common.sh must match
+  abstract readonly inputChunkMs: number; // minimum audio per sendAudio() call: the Translator accumulates up to it, 0 = as it arrives
   abstract readonly rotateMarginMs: number; // how long before 'expires.at' the replacement session is opened
 
   // Zero-cost liveness probe: a GET of the model's catalogue entry (models.get). It proves network,

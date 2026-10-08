@@ -4,9 +4,10 @@ This document describes how to deploy the project's server to [Railway](https://
 
 ## Prerequisites
 
-A Railway account, the API key of the chosen provider (`GEMINI_API_KEY` or
-`OPENAI_API_KEY`) and the repository on GitHub with the code on `main`: Railway
-builds only what is pushed there.
+A Railway account, the API key of the chosen provider (`GEMINI_API_KEY`,
+`OPENAI_API_KEY` or `PALABRA_API_KEY` with `PALABRA_SOURCE_LANG`) and the
+repository on GitHub with the code on `main`: Railway builds only what is
+pushed there.
 
 ## 1. Project
 
