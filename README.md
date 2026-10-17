@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](server/Dockerfile)
+[![DeepL Voice](https://img.shields.io/badge/DeepL-Voice-0F2B46?logo=deepl&logoColor=white)](https://developers.deepl.com/docs/voice/overview)
 [![Gemini Live](https://img.shields.io/badge/Gemini-Live-4285F4?logo=google&logoColor=white)](https://ai.google.dev/gemini-api/docs/live-api/live-translate)
 [![OpenAI Realtime](https://img.shields.io/badge/OpenAI-Realtime-412991?logo=openai&logoColor=white)](https://developers.openai.com/api/docs/models/gpt-realtime-translate)
 [![Palabra.ai](https://img.shields.io/badge/Palabra.ai-Speech--to--Speech-111111)](https://docs.palabra.ai/docs/quick-start/websockets)
@@ -15,8 +16,9 @@ It replaces the interpreting booth and the radio receivers: a typical setup is a
 
 How it works: a PC captures the audio with ffmpeg (or another audio stream) and sends it to a server, which passes it to a real-time translation provider and redistributes the translated audio and subtitles to the listeners.
 
-The provider is chosen in the `.env` (`PROVIDER=google|openai|palabra`); currently supported:
+The provider is chosen in the `.env` (`PROVIDER=deepl|google|openai|palabra`); currently supported:
 
+- DeepL Voice API (speech-to-speech)
 - Google Gemini `gemini-3.5-live-translate-preview`
 - OpenAI `gpt-realtime-translate`
 - Palabra.ai Speech-to-Speech Translation API
@@ -63,7 +65,7 @@ It is distributed as a Docker image, since that is the most versatile form for a
 
 > [!CAUTION]
 > The server has no spending cap of its own.  
-> Before the first public event set a hard monthly budget and alerts on the provider account: on OpenAI at platform.openai.com, on Google in the billing alerts of the Cloud project linked to the AI Studio key.
+> Before the first public event set a hard monthly budget and spending alerts on the account of the chosen provider, in its billing settings.
 
 ## Configuration
 
@@ -71,11 +73,12 @@ All settings live in the root `.env` (copy `.env.example`), split as in the file
 
 | Section | Variable | Meaning |
 |---|---|---|
-| SERVER | `PROVIDER` | translation provider, `openai` (default), `google` or `palabra`; a single one for all languages |
-| SERVER | `OPENAI_API_KEY` | OpenAI key, required with `PROVIDER=openai`, used only by the server |
-| SERVER | `OPENAI_MODEL` | OpenAI model, default `gpt-realtime-translate` |
+| SERVER | `PROVIDER` | translation provider, `deepl`, `google`, `openai` (default) or `palabra`; a single one for all languages |
+| SERVER | `DEEPL_API_KEY` | DeepL API key of a paid plan (Voice is not available on Free), required with `PROVIDER=deepl`, used only by the server |
 | SERVER | `GEMINI_API_KEY` | Google AI Studio key, required with `PROVIDER=google`, used only by the server |
 | SERVER | `GEMINI_MODEL` | Gemini model, default `gemini-3.5-live-translate-preview` |
+| SERVER | `OPENAI_API_KEY` | OpenAI key, required with `PROVIDER=openai`, used only by the server |
+| SERVER | `OPENAI_MODEL` | OpenAI model, default `gpt-realtime-translate` |
 | SERVER | `PALABRA_API_KEY` | Palabra.ai API key, required with `PROVIDER=palabra`, used only by the server |
 | SERVER | `PALABRA_SOURCE_LANG` | language spoken by the speaker, required with `PROVIDER=palabra`: Palabra does not detect it unless set to `auto` (experimental, limited set of languages) |
 | SERVER | `ROTATE_MARGIN_MS` | how far ahead of expiry the replacement session is opened; empty = provider default (OpenAI 5 min, Gemini 2 min). Only useful to test rotation |
@@ -172,6 +175,7 @@ Locally it comes from the root `.env` (loaded by `docker compose`); in productio
 
 Language codes depend on the provider; the up-to-date list is in the official documentation:
 
+- **DeepL**: its own codes, partly regional for targets, returned by `GET /v3/languages?resource=voice`; the spoken language is detected automatically, see [Supported Voice languages](https://developers.deepl.com/docs/voice/supported-voice-languages).
 - **Gemini**: BCP-47 codes, where the two-letter ISO 639-1 ones are valid, see the [Live translation guide](https://ai.google.dev/gemini-api/docs/live-api/live-translate).
 - **OpenAI**: two-letter ISO 639-1 codes (`en`, `fr`, `it`), see the [Realtime translation guide](https://developers.openai.com/api/docs/guides/realtime-translation).
 - **Palabra.ai**: its own codes, partly regional for targets (e.g. `en-us`), for both `TARGET_LANGS` and `PALABRA_SOURCE_LANG`, see [Supported languages](https://docs.palabra.ai/docs/languages).
@@ -182,8 +186,8 @@ A rejected code makes the session setup fail: the server keeps retrying with bac
 
 | Endpoint | Description |
 |---|---|
-| `POST /ingest` | chunked body of mono PCM16 at the provider's sample rate (OpenAI 24 kHz, Google 16 kHz, Palabra 24 kHz), header `Authorization: Bearer <INGEST_TOKEN>`. 401 with a wrong token, 409 if an ingest is already active |
-| `GET /health` | public, no data: `200 ok` if the server is up and the provider answers a free `GET` (OpenAI and Gemini: the configured model, `models.get`; Palabra: the list of sessions; no session opened, no tokens), otherwise `503 unavailable` with the reason only in the logs |
+| `POST /ingest` | chunked body of mono PCM16 at the provider's sample rate (DeepL 16 kHz, Google 16 kHz, OpenAI 24 kHz, Palabra 24 kHz), header `Authorization: Bearer <INGEST_TOKEN>`. 401 with a wrong token, 409 if an ingest is already active |
+| `GET /health` | public, no data: `200 ok` if the server is up and the provider answers a free `GET` (DeepL: the API usage; OpenAI and Gemini: the configured model, `models.get`; Palabra: the list of sessions; no session opened, no tokens), otherwise `503 unavailable` with the reason only in the logs |
 | `GET /info` | header `Authorization: Bearer <INFO_TOKEN>`, 401 without it. Ingest state, listeners per language, `langs`, `provider`, `model` and `capabilities` (e.g. `{subtitles:true}`, the page hides the subtitles if `false`). Called only server side by the Next route handler, which forwards only `langs` and `capabilities` to the browser |
 | `GET /listen?lang=en&ticket=<JWT>` | WebSocket. `ticket` = JWT HS256 signed with `LISTEN_SECRET`, `exp` at most 50 s ahead (the page gets one from a Next Server Action at every connection). Closes with `4001` if the ticket is missing, invalid or expired, `4000` if the language is not configured, `4002` if the listener falls more than 128 KB behind. Binary frames = translated audio, one Opus packet each (20 ms, mono, 24 kHz, about 32 kbit/s), decoded by the page with WebCodecs. Text frames = JSON `{type:'subtitle'\|'status', ...}` |
 
@@ -194,8 +198,9 @@ A rejected code makes the session setup fail: the server keeps retrying with bac
 The server opens one session for each language in `TARGET_LANGS` and ffmpeg feeds them continuously, silence included, so the cost of an event is roughly languages × session minutes × provider rate, regardless of the number of listeners.  
 The billing unit, however, differs from provider to provider:
 
-- **OpenAI**: bills per minute of audio, see the [gpt-realtime-translate model page](https://developers.openai.com/api/docs/models/gpt-realtime-translate), pricing section.
+- **DeepL**: Voice requires a paid DeepL API subscription and the public documentation does not state the billing unit: check it in the plan or contract, see the [Voice API overview](https://developers.deepl.com/docs/voice/overview) and the [DeepL API plans](https://www.deepl.com/en/pro-api).
 - **Gemini**: bills per audio token, input and output, with a fixed number of tokens per second of audio; input runs for the whole session, output only while the model speaks. The [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing), under the `Live translate` model entry, gives in a note the resulting effective price per minute.
+- **OpenAI**: bills per minute of audio, see the [gpt-realtime-translate model page](https://developers.openai.com/api/docs/models/gpt-realtime-translate), pricing section.
 - **Palabra.ai**: bills per minute of speech-to-speech translation, see the [Palabra pricing](https://www.palabra.ai/pricing); its terms warn that prices shown may differ between users (A/B tests).
 
 Sessions stay open as long as ffmpeg is connected, even in silence.  
@@ -216,16 +221,18 @@ If the connection from the PC dies (unplugged cable, dropped Wi-Fi), the server 
   An integration that lets people ask questions in several languages directly from the site or app used to listen to the audio would be useful.
 - **Session duration**: each provider closes the session after a maximum time.
 
-   - OpenAI: 60 minutes ([Realtime conversations](https://developers.openai.com/api/docs/guides/realtime-conversations) guide; the exact expiry arrives in the `expires_at` field of `session.created`), the server rotates it 5 minutes earlier.
+   - DeepL: no maximum duration is documented, the connection may close at any time and the session ends after 30 s without audio ([Voice API requirements](https://developers.deepl.com/docs/voice/voice-api-requirements)), so the server never rotates it and reopens it if it drops.
    - Gemini: 15-minute audio session and a connection of about 10, announced by a `goAway` message shortly before closing ([Session management](https://ai.google.dev/gemini-api/docs/live-api/session-management)), the server rotates it after 8 minutes or immediately on `goAway`.
+   - OpenAI: 60 minutes ([Realtime conversations](https://developers.openai.com/api/docs/guides/realtime-conversations) guide; the exact expiry arrives in the `expires_at` field of `session.created`), the server rotates it 5 minutes earlier.
    - Palabra.ai: the session lives as long as the WebSocket connection and no maximum duration is documented, so the server never rotates it.
 
    Rotation is transparent (it opens a replacement, moves the audio there, lets the old one finish sending the queued audio and closes it), so events of any length work, but a word spoken exactly at the switch (every ~55 minutes with OpenAI, every ~8 with Gemini) can be lost.  
    If a session drops, it is reopened with exponential backoff.
 - **Input sample rate**: depends on the provider.
 
-   - OpenAI accepts only PCM16 at 24 kHz;
+   - DeepL documents PCM16 at 16 kHz;
    - Google works at 16 kHz as per the Live API documentation;
+   - OpenAI accepts only PCM16 at 24 kHz;
    - Palabra accepts 16-48 kHz, the server declares 24 kHz like its output.
 
    Each provider declares the value in the server (`inputSampleRate` variable) and ffmpeg produces it through the table in `client/_common.sh`, selected with the first argument of the scripts.  
