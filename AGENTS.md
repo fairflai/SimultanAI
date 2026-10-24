@@ -11,6 +11,7 @@
 - Railway's proxy cuts any request body at 5 minutes (TLS "Broken pipe" in ffmpeg at exactly 5:00): `client/send.sh` splits the stream into POSTs of at most 4 minutes with `dd` and `curl`, and the server keeps the provider sessions open `INGEST_GRACE_MS` between two POSTs.\
   `dd`, never `head -c`: BSD head (macOS) reads past its count from a pipe and the extra audio is lost silently.\
   ffmpeg cannot do it alone: the `segment` muxer opens a new POST per segment but drops `-headers`, so no token.\
+  The proxy also re-chunks the body into pieces of any length: `Translator.push()` sends only whole PCM16 samples, an odd piece made Gemini close with 1007 every few seconds (audio and subtitles freezing, never seen locally).\
   Without a timeout an unplugged cable is never detected (a dead TCP connection sends no FIN) and provider sessions stay open and billed for hours: so the server drops the POST after `INGEST_IDLE_MS` without receiving bytes, and the sessions close after the grace.
 - `TARGET_LANGS` on the server is the only source of languages.\
   The page reads them from `GET /info` through the Next route handler (server side, bearer `INFO_TOKEN`); the browser talks to the server only via WebSocket, so no CORS. Never hardcode languages in `web/`.

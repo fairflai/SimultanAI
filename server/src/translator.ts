@@ -183,9 +183,15 @@ export class Translator {
     this.input.push(data);
     this.inputBytes += data.length;
     if (this.inputBytes < this.minChunkBytes) return;
-    const chunk = this.input.length === 1 ? data : Buffer.concat(this.input);
-    this.input = [];
-    this.inputBytes = 0;
+    // The POST body arrives in arbitrary pieces (Railway's proxy re-chunks it): an odd length splits a PCM16 sample,
+    // Gemini closes the session with 1007 and every later sample is shifted by one byte. Only whole samples leave,
+    // the spare byte waits for the next piece
+    const all = this.input.length === 1 ? data : Buffer.concat(this.input);
+    const whole = all.length - (all.length % 2);
+    this.input = whole < all.length ? [all.subarray(whole)] : [];
+    this.inputBytes = all.length - whole;
+    if (whole === 0) return;
+    const chunk = all.subarray(0, whole);
     if (this.active?.readyState === WebSocket.OPEN) {
       this.append(this.active, chunk);
       return;

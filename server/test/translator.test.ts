@@ -23,8 +23,8 @@ test('audio pushed before the session is ready is queued and flushed on ready', 
   assert.deepEqual(first.sent, []);
   emit(first, { kind: 'ready' });
   assert.deepEqual(first.sent, ['audio:10', 'audio:20']);
-  translator.push(Buffer.alloc(5));
-  assert.deepEqual(first.sent.at(-1), 'audio:5');
+  translator.push(Buffer.alloc(6));
+  assert.deepEqual(first.sent.at(-1), 'audio:6');
 });
 
 test('with inputChunkMs the ingest is sent in chunks of at least that length', (t) => {
@@ -42,6 +42,17 @@ test('with inputChunkMs the ingest is sent in chunks of at least that length', (
   translator.close();
   t.mock.timers.tick(320);
   assert.equal(ws.sent.at(-1), `audio:${minBytes}`); // drain silence comes in chunks of the same length
+});
+
+test('only whole PCM16 samples reach the provider, an odd byte waits for the next piece', (t) => {
+  const { translator, first } = setup(t);
+  emit(first, { kind: 'ready' });
+  translator.push(Buffer.from([1, 2, 3]));
+  translator.push(Buffer.from([4]));
+  translator.push(Buffer.from([5]));
+  assert.deepEqual(first.sent, ['audio:2', 'audio:2']); // bytes 1-2, then 3-4; byte 5 waits
+  translator.push(Buffer.from([6, 7, 8]));
+  assert.deepEqual(first.sent.at(-1), 'audio:4'); // 5-8: alignment restored, nothing lost
 });
 
 test('the queue keeps at most 10 s of audio', (t) => {
@@ -94,8 +105,8 @@ test('rotation: replacement opens rotateMarginMs before expiry, old session is d
   translator.push(Buffer.alloc(8));
   assert.equal(first.sent.at(-1), 'audio:8'); // still on the old session until the new one is ready
   emit(second, { kind: 'ready' });
-  translator.push(Buffer.alloc(9));
-  assert.equal(second.sent.at(-1), 'audio:9');
+  translator.push(Buffer.alloc(10));
+  assert.equal(second.sent.at(-1), 'audio:10');
   t.mock.timers.tick(40);
   assert.equal(first.sent.at(-1), 'audio:1920'); // 40 ms of silence at 24 kHz keeps the old session emitting
   assert.equal(first.closed, false);
