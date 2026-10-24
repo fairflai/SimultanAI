@@ -191,3 +191,46 @@ footer {
     padding: 4px 8px;
   }
 }
+
+/* secondary, like the language select */
+#dark-on {
+  background: var(--paper);
+  border-color: var(--control);
+
+  &:hover:enabled {
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+}
+
+/* room mode: black screen, dim subtitles, near-invisible exit */
+#dark {
+  background: #000;
+  color: #9a9a9a;
+  display: flex;
+  flex-direction: column;
+  inset: 0;
+  padding: 16px;
+  position: fixed;
+  z-index: 1;
+
+  button {
+    align-self: flex-end;
+    background: none;
+    border-color: #262626;
+    color: #4a4a4a;
+  }
+
+  .lines {
+    font-size: 1.6rem;
+    line-height: 1.4;
+    margin: auto auto 0;
+    max-width: 688px;
+    width: 100%;
+  }
+
+  .prev {
+    color: #5a5a5a;
+    font-size: 1.1rem;
+  }
+}

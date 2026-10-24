@@ -40,6 +40,7 @@ export default function Page() {
   const [lang, setLang] = useState('');
   const [status, setStatus] = useState<Status>({ text: 'loading languages...', on: false });
   const [listening, setListening] = useState(false);
+  const [dark, setDark] = useState(false); // room mode: black screen with subtitles only, shown while listening
   const [subtitlesHidden, setSubtitlesHidden] = useState(false);
   const [currentLine, setCurrentLine] = useState('');
   const [prevLines, setPrevLines] = useState<string[]>([]);
@@ -280,6 +281,7 @@ export default function Page() {
     await ctx.current.resume(); // requires a user gesture
     nextTime.current = 0;
     setListening(true);
+    setDark(false);
     resetText();
     connect(lang);
   }
@@ -297,6 +299,13 @@ export default function Page() {
 
   useEffect(() => disconnect, []); // close the socket on unmount
 
+  const subtitles = (
+    <>
+      {prevLines.map((line, i) => <div key={i} className="prev">{line}</div>)}
+      <div>{currentLine}</div>
+    </>
+  );
+
   return (
     <>
       <p className="eyebrow">Live translation · AI</p>
@@ -307,12 +316,10 @@ export default function Page() {
           {langs.map((code) => <option key={code} value={code}>{languageName(code)}</option>)}
         </select>
         <button id="play" className={listening ? 'stop' : ''} onClick={togglePlay} disabled={!serverUrl || langs.length === 0}>{listening ? 'Stop' : 'Listen'}</button>
+        {listening && <button id="dark-on" onClick={() => setDark(true)}>Dark</button>}
         <span id="status" className={status.on ? 'on' : ''}>{status.text}</span>
       </div>
-      <div id="subtitles" hidden={subtitlesHidden}>
-        {prevLines.map((line, i) => <div key={i} className="prev">{line}</div>)}
-        <div>{currentLine}</div>
-      </div>
+      <div id="subtitles" hidden={subtitlesHidden}>{subtitles}</div>
       <canvas id="viz" ref={canvas} width={640} height={96} />
       <footer>
         Powered by{" "}
@@ -321,6 +328,14 @@ export default function Page() {
           FAIRFLAI
         </a>
       </footer>
+      {/* OLED pixels are off when black: close to a screen turned off, but the page stays in front and the audio keeps playing.
+          No Stop or language here, so a touch in a pocket can at most exit; losing the stream (4000/4001) exits too */}
+      {dark && listening && (
+        <div id="dark">
+          <button onClick={() => setDark(false)}>Exit</button>
+          {!subtitlesHidden && <div className="lines">{subtitles}</div>}
+        </div>
+      )}
     </>
   );
 }
