@@ -11,6 +11,9 @@ const PORT = Number(process.env.PORT) || 8000;
 const LANGS = (process.env.TARGET_LANGS || 'en').split(',').map((s) => s.trim()).filter(Boolean);
 // The source must stream continuously, silence included: this long without a byte means the link is dead
 const INGEST_IDLE_MS = Number(process.env.INGEST_IDLE_MS) || 15_000;
+// client/send.sh splits the stream into POSTs of at most 4 minutes (Railway's proxy cuts request bodies at 5):
+// the provider sessions wait this long for the next POST, so the listeners hear no gap and the context survives
+const INGEST_GRACE_MS = 5_000;
 
 function loadProvider(): Provider {
   try {
@@ -29,8 +32,19 @@ for (const name of [...provider.requiredEnv, 'INGEST_TOKEN', 'INFO_TOKEN', 'LIST
   }
 }
 
-interface Ingest { translators: Translator[]; startedAt: number; bytes: number }
+// The provider sessions: they outlive a single POST, see INGEST_GRACE_MS
+interface Ingest { translators: Translator[]; startedAt: number; bytes: number; closeTimer?: NodeJS.Timeout }
 let ingest: Ingest | null = null;
+let uploading = false; // a POST is streaming into them
+
+function closeIngest(): void {
+  if (!ingest) return;
+  const seconds = ((Date.now() - ingest.startedAt) / 1000).toFixed(1);
+  console.log(`ingest stopped after ${seconds} s, ${ingest.bytes} bytes`);
+  for (const t of ingest.translators) t.close();
+  ingest = null;
+  broadcast.textAll({ type: 'status', ingest: false });
+}
 
 function json(res: http.ServerResponse, status: number, body: object): void {
   res.writeHead(status, { 'content-type': 'application/json' });
@@ -50,43 +64,44 @@ function handleIngest(req: http.IncomingMessage, res: http.ServerResponse): void
     res.end('unauthorized');
     return;
   }
-  if (ingest) {
+  if (uploading) {
     console.log(`ingest rejected from ${req.socket.remoteAddress}: already active`);
     res.writeHead(409, { connection: 'close' });
     res.end('ingest already active');
     return;
   }
-
-  const translators = LANGS.map((lang) => new Translator(provider, lang));
-  const current: Ingest = { translators, startedAt: Date.now(), bytes: 0 };
-  ingest = current;
-  console.log(`ingest started from ${req.socket.remoteAddress}, languages: ${LANGS.join(',')}`);
-  broadcast.textAll({ type: 'status', ingest: true });
+  uploading = true;
+  clearTimeout(ingest?.closeTimer);
 
   let idleTimer: NodeJS.Timeout | undefined;
   const armIdle = () => {
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
       console.log(`ingest idle for ${INGEST_IDLE_MS} ms, dropping it`);
-      req.destroy(); // fires 'close' below, which stops the ingest
+      req.destroy(); // fires 'close' below, which ends the POST
     }, INGEST_IDLE_MS);
   };
   armIdle();
 
   req.on('data', (chunk: Buffer) => {
-    current.bytes += chunk.length;
+    // Sessions open on the first byte: the empty POST send.sh makes when ffmpeg exits costs nothing
+    if (!ingest) {
+      ingest = { translators: LANGS.map((lang) => new Translator(provider, lang)), startedAt: Date.now(), bytes: 0 };
+      console.log(`ingest started from ${req.socket.remoteAddress}, languages: ${LANGS.join(',')}`);
+      broadcast.textAll({ type: 'status', ingest: true });
+    }
+    ingest.bytes += chunk.length;
     armIdle();
-    for (const t of translators) t.push(chunk);
+    for (const t of ingest.translators) t.push(chunk);
   });
 
+  let done = false;
   const stop = () => {
+    if (done) return;
+    done = true;
     clearTimeout(idleTimer);
-    if (ingest !== current) return;
-    const seconds = ((Date.now() - current.startedAt) / 1000).toFixed(1);
-    console.log(`ingest stopped after ${seconds} s, ${current.bytes} bytes`);
-    for (const t of translators) t.close();
-    ingest = null;
-    broadcast.textAll({ type: 'status', ingest: false });
+    uploading = false;
+    if (ingest) ingest.closeTimer = setTimeout(closeIngest, INGEST_GRACE_MS);
   };
 
   req.on('end', () => {
@@ -143,7 +158,7 @@ const server = http.createServer((req, res) => {
   res.end();
 });
 
-// The ffmpeg POST lasts for hours: without this Node closes the request after 5 minutes.
+// A POST lasts up to 4 minutes, too close to the 5 of Node's default: no timeout, INGEST_IDLE_MS detects dead links
 server.requestTimeout = 0;
 // TCP keepalive surfaces a dead link at the socket level too
 server.on('connection', (socket) => socket.setKeepAlive(true, 10_000));

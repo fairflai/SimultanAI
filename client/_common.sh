@@ -9,10 +9,6 @@ case "$(uname -s)" in
   *) echo "unsupported operating system: $(uname -s)" >&2; exit 1 ;;
 esac
 
-# ffmpeg expects CRLF at the end of each header. Built as a variable, never via $(...):
-# command substitution strips the trailing \n and leaves a lone \r, which corrupts the request.
-CRLF=$'\r\n'
-
 # PCM16 mono sample rate each server provider expects (must match inputSampleRate in server/src/providers/impl/<provider>.ts)
 audio_rate() {
   case "$1" in

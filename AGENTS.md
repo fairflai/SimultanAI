@@ -8,9 +8,10 @@
   If the two values don't match, the pitch changes with no error in the logs.
 - The server keeps in RAM who sends the audio (`ingest` in index.ts) and who listens (`rooms` in broadcast.ts): it must run as a single instance.\
   With two replicas the audio reaches one and half of the listeners reach the other, which stays silent with no errors.
-- ffmpeg sends the audio as a single `POST /ingest` that lasts the whole event.\
-  Node closes it after 5 minutes by default, which is why `server.requestTimeout = 0` is mandatory.\
-  But without a timeout an unplugged cable is never detected (a dead TCP connection sends no FIN) and provider sessions stay open and billed for hours: so the server drops the ingest and closes the sessions after `INGEST_IDLE_MS` without receiving bytes.
+- Railway's proxy cuts any request body at 5 minutes (TLS "Broken pipe" in ffmpeg at exactly 5:00): `client/send.sh` splits the stream into POSTs of at most 4 minutes with `dd` and `curl`, and the server keeps the provider sessions open `INGEST_GRACE_MS` between two POSTs.\
+  `dd`, never `head -c`: BSD head (macOS) reads past its count from a pipe and the extra audio is lost silently.\
+  ffmpeg cannot do it alone: the `segment` muxer opens a new POST per segment but drops `-headers`, so no token.\
+  Without a timeout an unplugged cable is never detected (a dead TCP connection sends no FIN) and provider sessions stay open and billed for hours: so the server drops the POST after `INGEST_IDLE_MS` without receiving bytes, and the sessions close after the grace.
 - `TARGET_LANGS` on the server is the only source of languages.\
   The page reads them from `GET /info` through the Next route handler (server side, bearer `INFO_TOKEN`); the browser talks to the server only via WebSocket, so no CORS. Never hardcode languages in `web/`.
 - `GET /health` answers only `ok`/`unavailable`, the data lives in `/info`.\

@@ -33,7 +33,7 @@ flowchart LR
     server -- "WS (JWT ticket; audio + subtitles)" --> web["📱 Web page"]
 ```
 
-- `client/` ffmpeg scripts (nothing else runs on the PC)
+- `client/` ffmpeg scripts, plus `dd` and `curl` that every system already has (nothing else runs on the PC)
 - `server/` TypeScript run directly by Node 24 (type stripping, no build), Docker image for any container host.  
 The providers live in `server/src/providers/`: an abstract `Provider` class with typed events, a factory and one implementation per provider in `impl/`; adding one means writing a file and registering it in the factory.
 - `web/` Next.js page in TypeScript, a single client route
@@ -118,13 +118,19 @@ In a real production context, your web page/app must build on the [server API](#
 ffmpeg audio source in a third terminal:
 
 ```bash
-client/list-devices.sh                                                   # find the microphone
-client/send.sh openai http://localhost:8000/ingest <token> :1            # live from the microphone
-client/send-file.sh openai http://localhost:8000/ingest <token> talk.wav # or from a file, in real time
+client/list-devices.sh                                        # find the microphone
+client/send.sh openai http://localhost:8000/ingest <token> :1 # live from the microphone
 ```
 
 The client scripts take everything from arguments: the provider (the same `PROVIDER` as the server: it picks the sample rate ffmpeg produces the audio at, table in `client/_common.sh`), the ingest URL, the same token as `INGEST_TOKEN` on the server, and the device. They read neither environment variables nor the `.env`.  
-A ctrl-C on ffmpeg keeps the provider sessions open for another 10 s, so the last sentence is translated in full.
+`send.sh` splits the stream into consecutive POSTs of at most 4 minutes, on every host:
+
+- **it works behind any proxy**: some cut long requests (Railway closes any request body after 5 minutes), others do not, and the same script works on both without settings to remember
+- **no audio is lost**: while the next POST opens, the audio waits in the pipe and arrives right after
+- **listeners notice nothing**: the server keeps the provider sessions open for 5 s (`INGEST_GRACE_MS` in `server/src/index.ts`) waiting for the next POST, so the translation goes on in the same sessions, with their context
+- the only cost is one HTTPS reconnection every 4 minutes
+
+A ctrl-C on ffmpeg keeps the provider sessions open for another 15 s (5 s waiting for a POST, then 10 s of draining), so the last sentence is translated in full.
 
 ### Finding the microphone
 
@@ -156,7 +162,7 @@ The server is a Docker image (`server/Dockerfile`) and runs on any container hos
 It needs:
 
 - the SERVER variables from the [Configuration](#configuration) section (see `.env.example`)
-- HTTPS termination in front, long-lived chunked `POST` requests and WebSocket upgrades passed through without buffering
+- HTTPS termination in front, chunked `POST` requests and WebSocket upgrades passed through without buffering (a request duration limit is fine down to 5 minutes, see [Running locally](#running-locally))
 - healthcheck on `GET /health`: 200 only if the provider key and model respond too (free check, no session opened)
 
 The repository is a monorepo: `server/` and `web/` are deployed as two separate services, each with its own root directory, so a push that touches only one of them rebuilds only that one.  
@@ -182,7 +188,7 @@ A rejected code makes the session setup fail: the server keeps retrying with bac
 
 | Endpoint | Description |
 |---|---|
-| `POST /ingest` | chunked body of mono PCM16 at the provider's sample rate (OpenAI 24 kHz, Google 16 kHz, Palabra 24 kHz), header `Authorization: Bearer <INGEST_TOKEN>`. 401 with a wrong token, 409 if an ingest is already active |
+| `POST /ingest` | chunked body of mono PCM16 at the provider's sample rate (OpenAI 24 kHz, Google 16 kHz, Palabra 24 kHz), header `Authorization: Bearer <INGEST_TOKEN>`. 401 with a wrong token, 409 if another POST is streaming. A POST that ends keeps the provider sessions open for 5 s: the next POST continues the same sessions (that is how `send.sh` stays under the proxies' request limits) |
 | `GET /health` | public, no data: `200 ok` if the server is up and the provider answers a free `GET` (OpenAI and Gemini: the configured model, `models.get`; Palabra: the list of sessions; no session opened, no tokens), otherwise `503 unavailable` with the reason only in the logs |
 | `GET /info` | header `Authorization: Bearer <INFO_TOKEN>`, 401 without it. Ingest state, listeners per language, `langs`, `provider`, `model` and `capabilities` (e.g. `{subtitles:true}`, the page hides the subtitles if `false`). Called only server side by the Next route handler, which forwards only `langs` and `capabilities` to the browser |
 | `GET /listen?lang=en&ticket=<JWT>` | WebSocket. `ticket` = JWT HS256 signed with `LISTEN_SECRET`, `exp` at most 50 s ahead (the page gets one from a Next Server Action at every connection). Closes with `4001` if the ticket is missing, invalid or expired, `4000` if the language is not configured, `4002` if the listener falls more than 128 KB behind. Binary frames = translated audio, one Opus packet each (20 ms, mono, 24 kHz, about 32 kbit/s), decoded by the page with WebCodecs. Text frames = JSON `{type:'subtitle'\|'status', ...}` |
@@ -199,7 +205,7 @@ The billing unit, however, differs from provider to provider:
 - **Palabra.ai**: bills per minute of speech-to-speech translation, see the [Palabra pricing](https://www.palabra.ai/pricing); its terms warn that prices shown may differ between users (A/B tests).
 
 Sessions stay open as long as ffmpeg is connected, even in silence.  
-If the connection from the PC dies (unplugged cable, dropped Wi-Fi), the server drops the ingest and closes the sessions after `INGEST_IDLE_MS` without audio bytes, 15 s by default; relaunch `client/send.sh` to resume.  
+If the connection from the PC dies (unplugged cable, dropped Wi-Fi), the server drops the ingest and closes the sessions after `INGEST_IDLE_MS` without audio bytes, 15 s by default, plus the 5 s of `INGEST_GRACE_MS`; relaunch `client/send.sh` to resume.  
 **A hard spending limit on the provider account is the safety net for everything else**.
 
 ### Limits
