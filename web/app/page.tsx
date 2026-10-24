@@ -26,6 +26,12 @@ function languageName(code: string): string {
   }
 }
 
+// Last language picked, so the installed app opens on it
+const LANG_KEY = 'simultanai.lang';
+function savedLang(): string | null {
+  try { return localStorage.getItem(LANG_KEY); } catch { return null; } // private mode or storage blocked
+}
+
 const BARS = 64; // waveform bars
 
 export default function Page() {
@@ -70,7 +76,8 @@ export default function Page() {
         if (cancelled) return;
         setSubtitlesHidden(capabilities?.subtitles === false); // provider without transcripts
         setLangs(langs);
-        setLang(langs[0] || '');
+        const saved = savedLang();
+        setLang(saved && langs.includes(saved) ? saved : langs[0] || ''); // the server may have dropped it
         setStatus({ text: 'not connected', on: false });
       } catch {
         if (cancelled) return;
@@ -280,6 +287,7 @@ export default function Page() {
   function changeLang(e: ChangeEvent<HTMLSelectElement>) {
     const next = e.target.value;
     setLang(next);
+    try { localStorage.setItem(LANG_KEY, next); } catch { /* storage blocked: just not remembered */ }
     if (!listening) return;
     disconnect();
     nextTime.current = 0;
@@ -293,6 +301,7 @@ export default function Page() {
     <>
       <p className="eyebrow">Live translation · AI</p>
       <h1>Simultan<span>AI</span></h1>
+      <p className="hint">Choose a language and press Listen, best with headphones 🎧</p>
       <div className="controls">
         <select id="lang" value={lang} onChange={changeLang} disabled={langs.length === 0}>
           {langs.map((code) => <option key={code} value={code}>{languageName(code)}</option>)}
@@ -305,7 +314,13 @@ export default function Page() {
         <div>{currentLine}</div>
       </div>
       <canvas id="viz" ref={canvas} width={640} height={96} />
-      <footer>Powered by <a href="https://www.fairflai.com">Fairflai</a></footer>
+      <footer>
+        Powered by{" "}
+        <a href="https://www.fairflai.com" rel="noopener" target="_blank">
+          <img alt="" height={16} src="/logo-fairflai.avif" width={16} />
+          FAIRFLAI
+        </a>
+      </footer>
     </>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Montserrat } from 'next/font/google';
+import InstallPrompt from './InstallPrompt';
 import './globals.css';
 
 // Same typeface as fairflai.com: regular for text, bold for labels, extra-bold italic for the title
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: 'SimultanAI', icons: { icon: '/logo.a
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={montserrat.className}>
-      <body>{children}</body>
+      <body>{children}<InstallPrompt /></body>
     </html>
   );
 }

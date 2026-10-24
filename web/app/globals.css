@@ -31,11 +31,17 @@ h1 {
   font-weight: 800;
   letter-spacing: -.035em;
   line-height: 1.05;
-  margin: 0 0 28px;
+  margin: 0 0 12px;
 
   span {
     color: var(--accent);
   }
+}
+
+.hint {
+  color: var(--muted);
+  font-size: .9rem;
+  margin: 0 0 24px;
 }
 
 .controls {
@@ -139,15 +145,49 @@ button {
 footer {
   border-top: 1px solid var(--rule);
   color: var(--muted);
-  font-size: .7rem;
+  font-size: .8rem;
   letter-spacing: .1em;
   margin-top: 32px;
   padding-top: 12px;
   text-transform: uppercase;
 
   a {
+    align-items: center;
     color: var(--ink);
+    display: inline-flex;
     font-weight: 700;
+    gap: 4px;
     text-decoration: none;
+    vertical-align: bottom;
+  }
+}
+
+/* install banner, pinned to the bottom of the page column */
+#install {
+  align-items: center;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 12px;
+  left: 16px;
+  margin: 0 auto;
+  max-width: 686px;
+  padding: 10px 10px 10px 16px;
+  position: fixed;
+  right: 16px;
+
+  p {
+    flex: 1;
+    font-size: .9rem;
+    margin: 0;
+  }
+
+  .close {
+    background: none;
+    border-color: transparent;
+    color: var(--ink);
+    font-size: 1.2rem;
+    padding: 4px 8px;
   }
 }

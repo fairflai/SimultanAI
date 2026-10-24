@@ -35,4 +35,5 @@
 - Listeners receive Opus, never PCM: `broadcast.ts` encodes once per language (`opus.ts`, 20 ms packets, `libopus-wasm`) and the page decodes with WebCodecs `AudioDecoder`.\
   WASM on purpose: `@discordjs/opus` has no Node 24 prebuild (Alpine would have to compile it) and `@evan/opus` is glibc-only and falls back to WASM silently.\
   A listener with more than `MAX_BUFFERED_BYTES` queued is closed with 4002.
+- `web/` is an installable PWA with NO service worker, on purpose: Chrome no longer requires one, the page cannot work offline (WebSocket), and a cache would keep serving the old page after a deploy with no errors.
 - CSS in `web/`: native nesting and declarations in alphabetical order within each rule, NO tool enforces this.
